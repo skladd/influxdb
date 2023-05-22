@@ -1403,8 +1403,8 @@ func (m *seekAccessor) advise(need bool) error {
 // Access is mmap based block accessor.  It access blocks through an
 // MMAP or seek/read file interface, depending on the type of blockAccessor
 type accessor struct {
-	accessCount uint64 // Counter incremented everytime the accessor is accessed
-	freeCount   uint64 // Counter to determine whether the accessor can free its resources
+	accessCount *uint64 // Counter incremented everytime the accessor is accessed
+	freeCount   *uint64 // Counter to determine whether the accessor can free its resources
 
 	mmapWillNeed bool // If true then mmap advise value MADV_WILLNEED will be provided the kernel for b.
 	useSeek bool // If true, use seekAccessor instead of mmapAccessor
@@ -1423,6 +1423,9 @@ func (m *accessor) init() (*indirectIndex, error) {
 	if err := verifyVersion(m.f); err != nil {
 		return nil, err
 	}
+
+	m.freeCount = new(uint64)
+	m.accessCount = new(uint64)
 
 	var err error
 	if (m.useSeek) {
@@ -1461,14 +1464,14 @@ func (m *accessor) init() (*indirectIndex, error) {
 
 	// Allow resources to be freed immediately if requested
 	m.incAccess()
-	atomic.StoreUint64(&m.freeCount, 1)
+	atomic.StoreUint64(m.freeCount, 1)
 
 	return m.index, nil
 }
 
 func (m *accessor) free() error {
-	accessCount := atomic.LoadUint64(&m.accessCount)
-	freeCount := atomic.LoadUint64(&m.freeCount)
+	accessCount := atomic.LoadUint64(m.accessCount)
+	freeCount := atomic.LoadUint64(m.freeCount)
 
 	// Already freed everything.
 	if freeCount == 0 && accessCount == 0 {
@@ -1479,13 +1482,13 @@ func (m *accessor) free() error {
 	// If so, don't free anything and record the access count that we
 	// see now for the next check.
 	if accessCount != freeCount {
-		atomic.StoreUint64(&m.freeCount, accessCount)
+		atomic.StoreUint64(m.freeCount, accessCount)
 		return nil
 	}
 
 	// Reset both counters to zero to indicate that we have freed everything.
-	atomic.StoreUint64(&m.accessCount, 0)
-	atomic.StoreUint64(&m.freeCount, 0)
+	atomic.StoreUint64(m.accessCount, 0)
+	atomic.StoreUint64(m.freeCount, 0)
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -1494,7 +1497,7 @@ func (m *accessor) free() error {
 }
 
 func (m *accessor) incAccess() {
-	atomic.AddUint64(&m.accessCount, 1)
+	atomic.AddUint64(m.accessCount, 1)
 }
 
 func (m *accessor) rename(path string) error {
