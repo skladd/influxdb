@@ -1309,7 +1309,7 @@ func (d *indirectIndex) Close() error {
 // blockaccessor abstracts a method of accessing blocks from a
 // TSM file through the accessor.
 type blockAccessor interface {
-	length() int
+	length() int64
 	read(int64, int64) []byte
 	free() error
 	advise(bool) error
@@ -1338,8 +1338,8 @@ func NewMMapAccessor(f *os.File) (*mmapAccessor, error) {
 	return t, nil
 }
 
-func (m *mmapAccessor) length() int {
-	return len(m.b)
+func (m *mmapAccessor) length() int64 {
+	return int64(len(m.b))
 }
 
 func (m *mmapAccessor) read(start int64, stop int64) []byte {
@@ -1360,7 +1360,7 @@ func (m *mmapAccessor) advise(need bool) error {
 
 type seekAccessor struct {
 	f *os.File
-	l int
+	l int64
 }
 
 func NewSeekAccessor(f *os.File) (*seekAccessor, error) {
@@ -1372,11 +1372,11 @@ func NewSeekAccessor(f *os.File) (*seekAccessor, error) {
 	}
 	t.f = f
 	// TSM files are immutable so their size won't change
-	t.l = int(stat.Size())
+	t.l = stat.Size()
 	return t, nil
 }
 
-func (m *seekAccessor) length() int {
+func (m *seekAccessor) length() int64 {
 	return m.l
 }
 
